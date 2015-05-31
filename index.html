@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+	<title>Accelerometer Javascript Test</title>
+	<meta name="viewport" content="width=device-width,user-scalable=yes" />
+	<style>
+	body {
+		font-family: helvetica, arial, sans serif;
+	}
+	#sphere {
+		position: absolute;	
+		width: 50px;
+		height: 50px;
+		border-radius: 50px;
+		-webkit-radius: 50px;
+		background-color: blue;
+	}
+	</style>
+	<script src="/primus/primus.js"></script>
+</head>
+
+<body>
+<div id="content">
+    <h1>Accelerometer Javascript Test</h1>
+    <div id="sphere"></div>
+<ul>
+	<li>acceleration x: <span id="accelerationX"></span>g</li>
+	<li>acceleration y: <span id="accelerationY"></span>g</li>
+	<li>acceleration z: <span id="accelerationZ"></span>g</li>
+	<li>rotation alpha: <span id="rotationAlpha"></span>degree</li>
+	<li>rotation beta: <span id="rotationBeta"></span>degree</li>
+	<li>rotation gamma: <span id="rotationGamma"></span>degree</li>
+</ul>
+
+test: <span id="test"></span>
+</div>
+<script type="text/javascript">
+var primus = Primus.connect();
+// primus.write('asdfsadf')
+var x = 0, y = 0,
+    vx = 0, vy = 0,
+	ax = 0, ay = 0;
+
+var to_send = null	
+var sphere = document.getElementById("sphere");
+
+if (window.DeviceMotionEvent != undefined) {
+	window.ondevicemotion = function(e) {
+		ax = event.accelerationIncludingGravity.x * 5;
+		ay = event.accelerationIncludingGravity.y * 5;
+		document.getElementById("accelerationX").innerHTML = e.accelerationIncludingGravity.x;
+		document.getElementById("accelerationY").innerHTML = e.accelerationIncludingGravity.y;
+		document.getElementById("accelerationZ").innerHTML = e.accelerationIncludingGravity.z;
+
+		if ( e.rotationRate ) {
+			document.getElementById("rotationAlpha").innerHTML = e.rotationRate.alpha;
+			document.getElementById("rotationBeta").innerHTML = e.rotationRate.beta;
+			document.getElementById("rotationGamma").innerHTML = e.rotationRate.gamma;
+		}
+		acceleration_send({
+			"switch": 'device_motion',
+			"data"  : {
+				"acceleration" : {
+					"x": e.accelerationIncludingGravity.x,
+					"y": e.accelerationIncludingGravity.y,
+					"z": e.accelerationIncludingGravity.z
+				},
+				"rotation" : {
+					"a": e.rotationRate.alpha,
+					"b": e.rotationRate.beta,
+					"g": e.rotationRate.gamma
+				},
+			},
+			"timestamp" : Date.now()
+		})	
+	}
+
+	setInterval( function() {
+		var landscapeOrientation = window.innerWidth/window.innerHeight > 1;
+		if ( landscapeOrientation) {
+			vx = vx + ay;
+			vy = vy + ax;
+		} else {
+			vy = vy - ay;
+			vx = vx + ax;
+		}
+		vx = vx * 0.98;
+		vy = vy * 0.98;
+		y = parseInt(y + vy / 50);
+		x = parseInt(x + vx / 50);
+		
+		boundingBoxCheck();
+		
+		sphere.style.top = y + "px";
+		sphere.style.left = x + "px";
+		
+	}, 25);
+} 
+
+
+function boundingBoxCheck(){
+	if (x<0) { x = 0; vx = -vx; }
+	if (y<0) { y = 0; vy = -vy; }
+	// if (x>document.documentElement.clientWidth-20) { x = document.documentElement.clientWidth-20; vx = -vx; }
+	// if (y>document.documentElement.clientHeight-20) { y = document.documentElement.clientHeight-20; vy = -vy; }
+	
+}
+function acceleration_send(act_data) {
+	if (!to_send) {
+		to_send = act_data
+		setTimeout(function(){
+			var d = to_send;
+			to_send = null;
+			primus.write(d);
+		}, 500)
+		return
+	}
+	// TODO remake
+	to_send.data.acceleration.x = (to_send.acceleration.x + act_data.acceleration.x)/2;
+	to_send.data.acceleration.y = (to_send.acceleration.y + act_data.acceleration.y)/2;
+	to_send.data.acceleration.z = (to_send.acceleration.z + act_data.acceleration.z)/2;
+	to_send.rotation.a = (to_send.rotation.a + act_data.rotation.a)/2
+	to_send.rotation.b = (to_send.rotation.b + act_data.rotation.b)/2	
+	to_send.rotation.g = (to_send.rotation.g + act_data.rotation.g)/2
+	// to_send = {
+	//     "switch": 'device_motion',
+	// 	"data"  : {
+	// 		"acceleration" : {
+	// 			"x": (to_send.acceleration.x + act_data.acceleration.x)/2,
+	// 			"y": (to_send.acceleration.y + act_data.acceleration.y)/2,
+	// 			"z": (to_send.acceleration.z + act_data.acceleration.z)/2
+	// 		},
+	// 		"rotation" : {
+	// 			"a": (to_send.rotation.a + act_data.rotation.a)/2,
+	// 			"b": (to_send.rotation.b  + act_data.rotation.b)/2,
+	// 			"g": (to_send.rotation.g + act_data.rotation.g)/2
+	// 		},
+	// 	},
+	// 	"timestamp" : Date.now()			
+	// }
+}
+</script>
+
+</body>
+</html>
+rotation

@@ -1,0 +1,79 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>tracking.js - first tracking</title>
+  <script src="./build/tracking-min.js"></script>
+  <style type="text/css">
+    #myVideo, #canvas {
+      position: absolute;
+      left: 5px;
+      top: 5px;
+    }
+  </style>
+</head>
+<body>
+  <video id="myVideo" width="400" height="300" preload autoplay loop muted></video>
+  <canvas id="canvas" width="400" height="300"></canvas>
+  <script>
+  // tracking.ColorTracker.registerColor("magenta", function(t, r, n) {
+  //     var e = 50, i = t - 255, a = r - 0, o = n - 255;
+  //     return t - r >= e && n - r >= e ? !0 : 19600 > i * i + a * a + o * o
+  // })
+  var colors = new tracking.ColorTracker(['magenta', 'cyan']);
+  var canvas = document.getElementById('canvas');
+  var context = canvas.getContext('2d');
+
+  colors.on('track', function(event) {
+    if (event.data.length === 0) {
+      // No colors were detected in this frame.
+    } else {
+      context.clearRect(0, 0, canvas.width, canvas.height);
+      event.data.forEach(function(rect) {
+        console.log(rect.x, rect.y, rect.height, rect.width, rect.color);
+        if (rect.color === 'custom') {
+          rect.color = tracker.customColor;
+        }
+        context.strokeStyle = rect.color;
+        context.strokeRect(rect.x, rect.y, rect.width, rect.height);
+        context.font = '11px Helvetica';
+        context.fillStyle = "#fff";
+        context.fillText('x: ' + rect.x + 'px', rect.x + rect.width + 5, rect.y + 11);
+        context.fillText('y: ' + rect.y + 'px', rect.x + rect.width + 5, rect.y + 22);
+      });
+    }
+  });
+
+  window.addEventListener("DOMContentLoaded", function() {
+    // Grab elements, create settings, etc.
+    var video = document.getElementById("myVideo");
+
+    // Put video listeners into place
+    navigator.getUserMedia({ "video": true, "audio": false }, function(stream) {
+      video.src = window.URL.createObjectURL(stream);
+      video.play();
+    }, function(error) {
+      console.log("Video capture error: ", error.code); 
+    });
+    
+    tracking.track('#myVideo', colors);
+    // var tracker = new tracking.ColorTracker();
+    // tracking.track('#myVideo', tracker, { camera: true });
+    // tracker.on('track', function(event) {
+    //   context.clearRect(0, 0, canvas.width, canvas.height);
+    //   event.data.forEach(function(rect) {
+    //     if (rect.color === 'custom') {
+    //       rect.color = tracker.customColor;
+    //     }
+    //     context.strokeStyle = rect.color;
+    //     context.strokeRect(rect.x, rect.y, rect.width, rect.height);
+    //     context.font = '11px Helvetica';
+    //     context.fillStyle = "#fff";
+    //     context.fillText('x: ' + rect.x + 'px', rect.x + rect.width + 5, rect.y + 11);
+    //     context.fillText('y: ' + rect.y + 'px', rect.x + rect.width + 5, rect.y + 22);
+    //   });
+    // });
+  }, false);
+  </script>
+</body>
+</html>

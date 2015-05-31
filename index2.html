@@ -1,0 +1,442 @@
+<!DOCTYPE html>
+<html>
+<head>
+
+  <meta charset="UTF-8">
+  <title>Speach Javascript Test</title>
+  <meta name="viewport" content="width=device-width,user-scalable=yes" />
+  <script src="./public/jquery-1.11.3.min.js"></script>
+  <script src="./public/annyang.min.js"></script>  
+  <script src="./build/tracking-min.js"></script>
+  <!-- <script src="./public/nodecopter-client.js"></script> -->
+  <script src="/primus/primus.js"></script>
+  <style type="text/css">
+    * {
+      margin: 0;
+      padding: 0;
+    }
+    body {
+      padding: 5px
+      font-size: 14px;
+      position: relative;
+    }
+    .left_c {
+      position: relative;
+      float: left;
+      width: 300px;
+    }
+    .right_c {
+      position: relative;
+      float: right;
+      width: 1000px;
+    }
+    .camera {
+      border: 2px solid #0f0;
+    }
+    #state {
+      transition: background 0.5s linear;
+    }
+    #state.on {
+      background-color: #0f0;
+    }
+    div#error_b {
+      padding: 5px 0;
+      border: 1px solid #f00;
+      font-weight: bold;
+    }
+    .camera {
+      position: relative;
+      height: 360px;
+    }
+    #cam, #canvas  {
+      position: absolute;
+      top: 0;
+      left: 0;
+    }
+  </style>
+</head>
+
+<body>
+  <div class="left_c">
+    <h1 id="state">PRESS CTR AND SPEAK</h1>
+    <div>
+      <button onclick="send('start')">START</button>
+      <button onclick="send('stop')">STOP</button>
+      <button onclick="send('reset')">RESET</button>
+    </div>
+    <p>Something:</p>
+    <div id="greeting">
+      
+    </div>
+    <p>Error:</p>
+    <div id="error_b">
+      
+    </div>
+  </div>
+  <div class="right_c">
+    <div class="camera">
+      <!-- <video id="video_stream"></video> -->
+      <img id="cam" src="./public/default.jpg"/>
+      <canvas id="canvas"></canvas>
+    </div>    
+    <div id="stats">     
+        <div>Battery: <span id="batteryPercentage">(Drone not connected)</span>%</div>
+        <div>Direction: <span id="clockwiseDegrees"></span>°</div>
+        <div>front/back: <span id="frontBackDegrees"></span>°</div>
+        <div>left/right: <span id="leftRightDegrees"></span>°</div>
+        <div>Altitude: <span id="altitudeMeters"></span>m</div>
+        <div>Velocity (x/y/z): <span id="xVelocity"></span> / <span id="yVelocity"></span> / <span id="zVelocity"></span></div>
+    </div> 
+  </div>
+<script type="text/javascript">
+var primus = Primus.connect();
+primus.on('data', function(d) {
+  switch (d.switch) {
+    case 'nav_data' :
+      if (!d.data.demo)
+        break
+      ["batteryPercentage", "clockwiseDegrees", "altitudeMeters", "frontBackDegrees", "leftRightDegrees", "xVelocity", "yVelocity", "zVelocity"].forEach(function(type) {
+        return jQuery("#" + type).html(Math.round(d.data.demo[type], 4));
+      });
+      showBatteryStatus(d.data.demo.batteryPercentage);
+      break;
+    case 'image' :
+      $("#cam").attr({
+        src: d.data
+      });
+      tracking.track('#cam', colors);
+      break;  
+    default :
+      console.log('break', d);
+      break;
+  }
+})
+var is_press = false;
+function send(command) {
+  primus.write({
+    "switch": 'control',
+    "command": command
+  });
+};
+window.showBatteryStatus = function(batteryPercentage) {
+  $("#batterybar").width("" + batteryPercentage + "%");
+  if (batteryPercentage < 30) {
+    $("#batteryProgress").removeClass("progress-success").addClass("progress-warning");
+  }
+  if (batteryPercentage < 15) {
+    $("#batteryProgress").removeClass("progress-warning").addClass("progress-danger");
+  }
+  return $("#batteryProgress").attr({
+    "data-original-title": "Battery status: " + batteryPercentage + "%"
+  });
+};
+document.addEventListener('keypress', function(event){
+  if (event.keyCode != 32)
+    return
+  send('stop');
+});
+function switch_state(is_on) {
+  if (is_on) {
+    $("#state").removeClass('off').addClass('on');
+  } else {
+    $("#state").removeClass('on').addClass('off');
+  }
+}
+// function send_reset() {
+//   primus.write({
+//     "switch": 'control',
+//     "command": 'reset'
+//   });
+// };
+// new NodecopterStream(document.getElementById("video_stream"));
+
+/*
+--------------------------------
+-------------TRACK-------------
+--------------------------------
+ */
+// var img_track = document.getElementById('')
+var colors = new tracking.ColorTracker(['magenta', 'cyan', 'yellow']);
+var canvas = document.getElementById('canvas');
+var context = canvas.getContext('2d');
+
+colors.on('track', function(event) {
+  if (event.data.length === 0) {
+    // No colors were detected in this frame.
+  } else {
+    context.clearRect(0, 0, canvas.width, canvas.height);
+    event.data.forEach(function(rect) {
+      primus.write({
+        "switch" : "track",
+        "x" : ~~((rect.x+rect.width)/2),
+        "y" : ~~((rect.y+rect.height)/2),
+        "square" : (rect.height*rect.width),
+        "color"  : rect.color
+      });
+
+      // console.log(rect.x, rect.y, rect.height, rect.width, rect.color);
+      if (rect.color === 'custom') {
+        rect.color = tracker.customColor;
+      }
+      context.strokeStyle = rect.color;
+      context.strokeRect(rect.x, rect.y, rect.width, rect.height);
+      context.font = '11px Helvetica';
+      context.fillStyle = "#fff";
+      context.fillText('x: ' + rect.x + 'px', rect.x + rect.width + 5, rect.y + 11);
+      context.fillText('y: ' + rect.y + 'px', rect.x + rect.width + 5, rect.y + 22);
+    });
+  }
+});
+
+window.addEventListener("DOMContentLoaded", function() {
+  // var video = document.getElementById("cam");
+
+  // navigator.getUserMedia({ "video": true, "audio": false }, function(stream) {
+  //   video.src = window.URL.createObjectURL(stream);
+  //   video.play();
+  // }, function(error) {
+  //   console.log("Video capture error: ", error.code); 
+  // });
+  
+  // tracking.track('#cam', colors);
+}, false);
+/*
+--------------------------------
+-------------SPEACH-------------
+--------------------------------
+ */
+var commands = {
+  'left *term' : function(term) {
+    opt = [to_number(term)];
+    $('#greeting').text('left '+opt);
+    primus.write({
+      "switch": 'control',
+      "command": 'left',
+      "options" : opt
+    });
+  },
+  'right *term' : function(term) {
+    opt = [to_number(term)];
+    $('#greeting').text('right '+opt);
+    primus.write({
+      "switch": 'control',
+      "command": 'right',
+      "options" : opt
+    });
+  },
+  'op *term' : function(term) {
+    opt = [to_number(term)];
+    $('#greeting').text('up '+opt);
+    primus.write({
+      "switch": 'control',
+      "command": 'up',
+      "options" : opt
+    });
+  },
+  'up *term' : function(term) {
+    opt = [to_number(term)];
+    $('#greeting').text('up '+opt);
+    primus.write({
+      "switch": 'control',
+      "command": 'up',
+      "options" : opt
+    });
+  },
+  'don *term' : function(term) {
+    opt = [to_number(term)];
+    $('#greeting').text('down '+opt);
+    primus.write({
+      "switch": 'control',
+      "command": 'down',
+      "options" : opt
+    });
+  },
+  'down *term' : function(term) {
+    opt = [to_number(term)];
+    $('#greeting').text('down '+opt);
+    primus.write({
+      "switch": 'control',
+      "command": 'down',
+      "options" : opt
+    });
+  },
+  'front *term' : function(term) {
+    opt = [to_number(term)];
+    $('#greeting').text('front '+opt);
+    primus.write({
+      "switch": 'control',
+      "command": 'front',
+      "options" : opt
+    });
+  },
+  'back *term' : function(term) {
+    opt = [to_number(term)];
+    $('#greeting').text('back '+opt);
+    primus.write({
+      "switch": 'control',
+      "command": 'back',
+      "options" : opt
+    });
+  },
+  'rotate *term' : function(term) {
+    opt = [to_number(term)];
+    $('#greeting').text('rotate '+opt);
+    primus.write({
+      "switch": 'control',
+      "command": 'rotate',
+      "options" : opt
+    });
+  },
+  'flip left' : function(term) {
+    $('#greeting').text('flip left');
+    opt = [to_number(term)];
+    primus.write({
+      "switch": 'control',
+      "command": 'flip_left',
+      "options" : opt
+    });
+  },
+  'flip right' : function(term) {
+    $('#greeting').text('flip right');
+    opt = [to_number(term)];
+    primus.write({
+      "switch": 'control',
+      "command": 'flip_right',
+      "options" : opt
+    });
+  },
+  'flip front' : function(term) {    
+    $('#greeting').text('flip front');
+    opt = [to_number(term)];
+    primus.write({
+      "switch": 'control',
+      "command": 'flip_front',
+      "options" : opt
+    });
+  },
+  'flip back' : function(term) {    
+    $('#greeting').text('flip back');
+    opt = [to_number(term)];
+    primus.write({
+      "switch": 'control',
+      "command": 'flip_back',
+      "options" : opt
+    });
+  },
+  'dance' : function() {
+    $('#greeting').text('DANCE');
+    primus.write({
+      "switch": 'control',
+      "command": 'dance'
+    });
+  },
+  'find magenta' : function(term) {    
+    $('#greeting').text('find magenta');
+    primus.write({
+      "switch": 'control',
+      "command": 'track_color',
+      "options" : ["magenta"]
+    });
+  },
+  'find green' : function(term) {    
+    $('#greeting').text('find green');
+    primus.write({
+      "switch": 'control',
+      "command": 'track_color',
+      "options" : ["cyan"]
+    });
+  },
+  'find yellow' : function(term) {    
+    $('#greeting').text('find yellow');
+    primus.write({
+      "switch": 'control',
+      "command": 'track_color',
+      "options" : ["yellow"]
+    });
+  },
+  'start' : function() {   
+    $('#greeting').text('START');
+    primus.write({
+      "switch": 'control',
+      "command": 'start'
+    });
+  },
+  'stop' : function() {   
+    $('#greeting').text('STOP');
+    primus.write({
+      "switch": 'control',
+      "command": 'stop'
+    });
+  }
+};
+
+if (annyang) {
+  annyang.debug();
+
+  annyang.addCommands(commands);
+
+  annyang.setLanguage('en');
+  annyang.addCallback('error', function (err,data) {
+    $('#error_b').text('There was an error!');
+  });
+  annyang.addCallback('result', function (err,data) {
+    console.log(err,data);
+    $('#error_b').text('RESULT!');
+    annyang.abort();
+    switch_state(false);
+  });
+
+  annyang.start({ autoRestart: false, continuous: false });
+  annyang.abort();
+  document.addEventListener('keydown', function(event){
+    if (event.keyCode != 17 || is_press)
+      return
+    is_press = true;
+    annyang.resume();
+    switch_state(true);
+  });
+  document.addEventListener('keyup', function(event){
+    if (event.keyCode != 17)
+      return
+    is_press = false;
+    annyang.abort();
+    switch_state(false);
+  });
+} else {
+
+}
+function to_number(number) {
+  if (!isNaN(number))
+    return +number
+  switch (number) {
+    case 'one' :
+      return 1;
+      break;
+    case 'to' :
+      return 2;
+      break;
+    case 'do' :
+      return 2;
+      break;
+    case 'free' :
+      return 3;
+      break;
+    case 'for' :
+      return 4;
+      break;
+    case 'live' :
+      return 5;
+      break;
+    case 'sex' :
+      return 6;
+      break;
+    default :
+      return null
+      break;
+  }
+
+  return
+}
+</script>
+</body>
+</html>
